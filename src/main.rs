@@ -1,19 +1,19 @@
 use std::{
-    fs::{self, File},
-    io::{Seek, SeekFrom, Write, stdin, stdout},
+    fs::{self},
+    io::{Write, stdin, stdout},
     iter,
 };
 
 use clap::Parser;
 use reqwest::blocking::Client;
 
-use crate::artist::search_artist;
+use crate::artist::{Artists, search_artist};
 
 mod artist;
 
 #[derive(Parser, Debug)]
 enum Args {
-    Load { artist: String },
+    Search { artist: String },
     List,
 }
 
@@ -30,7 +30,11 @@ fn main() {
     let web_client = Client::new();
 
     let save_file = fs::read_to_string("save.json").unwrap();
-    let mut artists: Vec<_> = serde_json::from_str(&save_file).unwrap_or(Vec::new());
+    let mut artists = serde_json::from_str(&save_file)
+        .unwrap_or(Artists {
+            artists: Vec::new(),
+        })
+        .into_hashmap();
 
     loop {
         let args = read_command();
@@ -38,10 +42,10 @@ fn main() {
 
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
-                Args::Load { artist } => {
+                Args::Search { artist } => {
                     let artist = search_artist(&web_client, &artist).unwrap();
                     println!("{artist:#?}");
-                    artists.push(artist);
+                    artists.insert(artist.id.clone(), artist);
                 }
                 Args::List => {
                     println!("{:#?}", artists);
