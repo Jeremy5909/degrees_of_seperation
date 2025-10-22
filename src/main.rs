@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Write, stdin, stdout},
+    io::{Seek, SeekFrom, Write, stdin, stdout},
     iter,
 };
 
@@ -15,7 +15,6 @@ mod artist;
 enum Args {
     Load { artist: String },
     List,
-    Save,
 }
 
 fn read_command() -> Vec<String> {
@@ -36,8 +35,9 @@ fn main() {
         .create(true)
         .open("save.json")
         .unwrap();
+    save_file.seek(SeekFrom::Start(0)).unwrap();
 
-    let mut local_artists = Vec::new();
+    let mut artists: Vec<_> = serde_json::from_reader(&mut save_file).unwrap_or(Vec::new());
 
     loop {
         let args = read_command();
@@ -48,17 +48,17 @@ fn main() {
                 Args::Load { artist } => {
                     let artist = search_artist(&web_client, &artist).unwrap();
                     println!("{artist:#?}");
-                    local_artists.push(artist);
+                    artists.push(artist);
                 }
-                Args::Save => match serde_json::to_writer(&mut save_file, &local_artists) {
-                    Ok(()) => println!("Saved "),
-                    Err(e) => println!("{}", e),
-                },
                 Args::List => {
-                    println!("{:#?}", local_artists);
+                    println!("{:#?}", artists);
                 }
             },
             Err(e) => eprintln!("{}", e.render()),
         }
+
+        save_file.set_len(0).unwrap();
+        save_file.seek(SeekFrom::Start(0)).unwrap();
+        serde_json::to_writer(&mut save_file, &artists).unwrap();
     }
 }
