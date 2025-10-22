@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{Seek, SeekFrom, Write, stdin, stdout},
     iter,
 };
@@ -29,15 +29,8 @@ fn read_command() -> Vec<String> {
 fn main() {
     let web_client = Client::new();
 
-    let mut save_file = File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open("save.json")
-        .unwrap();
-    save_file.seek(SeekFrom::Start(0)).unwrap();
-
-    let mut artists: Vec<_> = serde_json::from_reader(&mut save_file).unwrap_or(Vec::new());
+    let save_file = fs::read_to_string("save.json").unwrap();
+    let mut artists: Vec<_> = serde_json::from_str(&save_file).unwrap_or(Vec::new());
 
     loop {
         let args = read_command();
@@ -57,8 +50,6 @@ fn main() {
             Err(e) => eprintln!("{}", e.render()),
         }
 
-        save_file.set_len(0).unwrap();
-        save_file.seek(SeekFrom::Start(0)).unwrap();
-        serde_json::to_writer(&mut save_file, &artists).unwrap();
+        fs::write("save.json", serde_json::to_string_pretty(&artists).unwrap()).unwrap();
     }
 }
