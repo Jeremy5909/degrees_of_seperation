@@ -7,7 +7,7 @@ use std::{
 
 use clap::Parser;
 
-use crate::artist::{Artist, Entity, Music};
+use crate::artist::{Artist, Music};
 
 mod artist;
 
@@ -45,7 +45,7 @@ fn main() {
             Ok(command) => match command {
                 Args::Search { artist } => {
                     let artist = music_api
-                        .search(Entity::Artist, &artist)
+                        .search(&artist)
                         .unwrap()
                         .artists
                         .into_iter()
