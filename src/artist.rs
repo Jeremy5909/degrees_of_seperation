@@ -1,26 +1,16 @@
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
 
 use reqwest::{Url, blocking::Client};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
-    pub artists: Vec<ArtistWithId>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ArtistWithId {
-    id: String,
-    pub name: String,
-}
-impl ArtistWithId {
-    pub fn into_tuple(self) -> (String, Artist) {
-        (self.id, Artist { name: self.name })
-    }
+    pub artists: Vec<Artist>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Artist {
+    pub id: String,
     pub name: String,
 }
 
