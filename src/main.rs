@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self},
     io::{Write, stdin, stdout},
     iter,
@@ -7,7 +8,7 @@ use std::{
 use clap::Parser;
 use reqwest::blocking::Client;
 
-use crate::artist::{Artists, search_artist};
+use crate::artist::{Artist, search_artist};
 
 mod artist;
 
@@ -29,12 +30,13 @@ fn read_command() -> Vec<String> {
 fn main() {
     let web_client = Client::new();
 
-    let save_file = fs::read_to_string("save.json").unwrap();
-    let mut artists = serde_json::from_str(&save_file)
-        .unwrap_or(Artists {
-            artists: Vec::new(),
-        })
-        .into_hashmap();
+    let save_file = fs::read_to_string("save.json").unwrap_or_default();
+
+    let mut artists: HashMap<String, Artist> = if save_file.is_empty() {
+        HashMap::new()
+    } else {
+        serde_json::from_str(&save_file).unwrap()
+    };
 
     loop {
         let args = read_command();
@@ -43,9 +45,9 @@ fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist } => {
-                    let artist = search_artist(&web_client, &artist).unwrap();
+                    let (id, artist) = search_artist(&web_client, &artist).unwrap();
                     println!("{artist:#?}");
-                    artists.insert(artist.id.clone(), artist);
+                    artists.insert(id, artist);
                 }
                 Args::List => {
                     println!("{:#?}", artists);

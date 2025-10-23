@@ -1,30 +1,23 @@
-use std::collections::HashMap;
-
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Artists {
-    pub artists: Vec<Artist>,
+struct Artists {
+    pub artists: Vec<ArtistWithId>,
 }
-impl Artists {
-    pub fn into_hashmap(self) -> HashMap<String, Artist> {
-        let mut hashmap = HashMap::new();
-        for artist in self.artists {
-            hashmap.insert(artist.id.clone(), artist);
-        }
-        hashmap
-    }
+
+#[derive(Serialize, Deserialize)]
+struct ArtistWithId {
+    id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Artist {
-    #[serde(skip_serializing)]
-    pub id: String,
     pub name: String,
 }
 
-pub fn search_artist(client: &Client, name: &str) -> Result<Artist, String> {
+pub fn search_artist(client: &Client, name: &str) -> Result<(String, Artist), String> {
     let url = format!("https://musicbrainz.org/ws/2/artist/?query=artist:{name}&fmt=json");
     let artists: Artists = client
         .get(url)
@@ -37,9 +30,10 @@ pub fn search_artist(client: &Client, name: &str) -> Result<Artist, String> {
         .json()
         .map_err(|e| e.to_string())?;
 
-    artists
+    let artist = artists
         .artists
         .into_iter()
         .next()
-        .ok_or("Artist not found".into())
+        .ok_or("Artist not found")?;
+    Ok((artist.id, Artist { name: artist.name }))
 }
