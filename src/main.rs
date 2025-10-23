@@ -6,9 +6,8 @@ use std::{
 };
 
 use clap::Parser;
-use reqwest::blocking::Client;
 
-use crate::artist::{Artist, search_artist};
+use crate::artist::{Artist, Entity, Music};
 
 mod artist;
 
@@ -28,7 +27,7 @@ fn read_command() -> Vec<String> {
 }
 
 fn main() {
-    let web_client = Client::new();
+    let music_api = Music::new();
 
     let save_file = fs::read_to_string("save.json").unwrap_or_default();
 
@@ -45,7 +44,14 @@ fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist } => {
-                    let (id, artist) = search_artist(&web_client, &artist).unwrap();
+                    let (id, artist) = music_api
+                        .search(Entity::Artist, &artist)
+                        .unwrap()
+                        .artists
+                        .into_iter()
+                        .next()
+                        .unwrap()
+                        .into_tuple();
                     println!("{artist:#?}");
                     artists.insert(id, artist);
                 }
