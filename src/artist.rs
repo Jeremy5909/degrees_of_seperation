@@ -13,14 +13,38 @@ use serde_json::Value;
 pub struct Artist {
     pub id: String,
     pub name: String,
+    albums: Option<Vec<Album>>,
 }
 #[derive(Serialize, Deserialize)]
-pub struct ArtistsResponse {
+struct ArtistsResponse {
     pub artists: Artists,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
     pub items: Vec<Artist>,
+}
+
+#[derive(Deserialize)]
+struct Albums {
+    items: Vec<Album>,
+}
+#[derive(Deserialize, Debug, Clone, Serialize)]
+struct Album {
+    name: String,
+    id: String,
+    tracks: Option<Vec<Track>>,
+}
+
+#[derive(Deserialize, Debug, Clone, Serialize)]
+struct Tracks {
+    items: Vec<Track>,
+}
+
+#[derive(Deserialize, Debug, Clone, Serialize)]
+struct Track {
+    name: String,
+    id: String,
+    artists: Vec<Artist>,
 }
 
 pub struct Music {
@@ -29,7 +53,6 @@ pub struct Music {
     client_secret: String,
     access_token: String,
 }
-
 impl Music {
     pub fn new() -> Music {
         dotenv().unwrap();
@@ -67,7 +90,7 @@ impl Music {
             .send()?
             .json()
     }
-    pub fn search_artist(&self, query: &str) -> Result<Artists, reqwest::Error> {
+    pub fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
         eprintln!("Finding {query}...");
         let artists: ArtistsResponse = self.get(
             Url::parse_with_params(
@@ -81,6 +104,39 @@ impl Music {
             artists.artists.items.first().unwrap().name,
             artists.artists.items.len() - 1
         );
-        Ok(artists.artists)
+        let artists = artists.artists.items;
+        let mut artist = artists.into_iter().next().unwrap();
+
+        let albums = self.get_artist_albums(&artist);
+        artist.albums = Some(albums);
+        Ok(artist)
+    }
+    fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
+        eprintln!("Finding {}'s albums...", artist.name);
+        let albums: Albums = self
+            .get(format!(
+                "https://api.spotify.com/v1/artists/{}/albums",
+                artist.id
+            ))
+            .unwrap();
+        eprintln!("Found {} albums", albums.items.len());
+        let mut albums = albums.items;
+
+        for album in &mut albums {
+            album.tracks = Some(self.get_album_tracks(&album));
+        }
+
+        albums
+    }
+    fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
+        eprintln!("Finding {}'s songs...", album.name);
+        let tracks: Tracks = self
+            .get(format!(
+                "https://api.spotify.com/v1/albums/{}/tracks",
+                album.id
+            ))
+            .unwrap();
+        eprintln!("Found {} songs", tracks.items.len());
+        tracks.items
     }
 }
