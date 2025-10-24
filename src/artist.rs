@@ -143,10 +143,13 @@ impl Music {
     fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
         let albums: Albums = self
-            .get(format!(
-                "https://api.spotify.com/v1/artists/{}/albums",
-                artist.id
-            ))
+            .get(
+                Url::parse_with_params(
+                    &format!("https://api.spotify.com/v1/artists/{}/albums", artist.id),
+                    [("limit", "50")],
+                )
+                .unwrap(),
+            )
             .unwrap();
         eprintln!("Found {} albums", albums.items.len());
 
@@ -155,10 +158,13 @@ impl Music {
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
         let tracks: Tracks = self
-            .get(format!(
-                "https://api.spotify.com/v1/albums/{}/tracks",
-                album.id
-            ))
+            .get(
+                Url::parse_with_params(
+                    &format!("https://api.spotify.com/v1/albums/{}/tracks", album.id),
+                    [("limit", "50")],
+                )
+                .unwrap(),
+            )
             .unwrap();
         eprintln!("Found {} songs", tracks.items.len());
         tracks.items
