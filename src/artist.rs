@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fmt::Display};
+use std::{collections::HashMap, env, fmt::Display, vec::IntoIter};
 
 use dotenv::dotenv;
 use reqwest::{
@@ -22,6 +22,15 @@ pub struct Artist {
 struct ArtistsResponse {
     pub artists: Artists,
 }
+impl IntoIterator for ArtistsResponse {
+    type Item = Artist;
+
+    type IntoIter = IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.artists.items.into_iter()
+    }
+}
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
     pub items: Vec<Artist>,
@@ -30,6 +39,15 @@ pub struct Artists {
 #[derive(Deserialize)]
 struct Albums {
     items: Vec<Album>,
+}
+impl IntoIterator for Albums {
+    type Item = Album;
+
+    type IntoIter = IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]
 struct Album {
@@ -41,6 +59,15 @@ struct Album {
 #[derive(Deserialize, Debug, Clone, Serialize)]
 struct Tracks {
     items: Vec<Track>,
+}
+impl IntoIterator for Tracks {
+    type Item = Track;
+
+    type IntoIter = IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -63,6 +90,7 @@ impl Display for Entity {
     }
 }
 
+#[allow(dead_code)]
 pub struct Music {
     client: Client,
     client_id: String,
@@ -106,18 +134,52 @@ impl Music {
             .send()?
             .json()
     }
-    fn get_entities<T>(&self, lhs: Entity, id: &str, rhs: Entity) -> Result<T, reqwest::Error>
+    fn get_entities<T>(
+        &self,
+        lhs: Entity,
+        id: &str,
+        rhs: Entity,
+        number_pages: Option<usize>,
+    ) -> Result<Vec<T::Item>, reqwest::Error>
     where
-        for<'a> T: Deserialize<'a>,
+        for<'a> T: IntoIterator + Deserialize<'a>,
     {
-        eprintln!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}");
-        self.get(
-            Url::parse_with_params(
-                &format!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}"),
-                [("limit", "50")],
-            )
-            .unwrap(),
-        )
+        let mut page = 0;
+        let limit = 50;
+
+        let mut entities: Vec<T::Item> = Vec::new();
+
+        loop {
+            let fetched_entities: T = self
+                .get(
+                    Url::parse_with_params(
+                        &format!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}"),
+                        [
+                            ("limit", limit.to_string()),
+                            ("offset", (page * limit).to_string()),
+                        ],
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            let fetched_entities: Vec<_> = fetched_entities.into_iter().collect();
+            let length = fetched_entities.len();
+            eprintln!("got {}", length);
+            entities.extend(fetched_entities);
+            if length < limit {
+                break;
+            }
+            if let Some(number_pages) = number_pages {
+                if page > number_pages {
+                    break;
+                }
+            }
+
+            page += 1;
+            println!("going to page {page}");
+        }
+        println!("done fetching all entities");
+        Ok(entities)
     }
     pub fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
         eprintln!("Finding {query}...");
@@ -168,19 +230,19 @@ impl Music {
     }
     fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
-        let albums: Albums = self
-            .get_entities(Entity::Artists, &artist.id, Entity::Albums)
+        let albums: Vec<Album> = self
+            .get_entities::<Albums>(Entity::Artists, &artist.id, Entity::Albums, None)
             .unwrap();
-        eprintln!("Found {} albums", albums.items.len());
+        eprintln!("Found {} albums", albums.len());
 
-        albums.items
+        albums
     }
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
-        let tracks: Tracks = self
-            .get_entities(Entity::Albums, &album.id, Entity::Tracks)
+        let tracks: Vec<Track> = self
+            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, None)
             .unwrap();
-        eprintln!("Found {} songs", tracks.items.len());
-        tracks.items
+        eprintln!("Found {} songs", tracks.len());
+        tracks
     }
 }
