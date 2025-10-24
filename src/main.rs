@@ -15,7 +15,6 @@ mod artist;
 enum Args {
     Search { artist: String },
     List,
-    Songs { artist: String },
 }
 
 fn read_command() -> Vec<String> {
@@ -45,27 +44,18 @@ fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist } => {
-                    let artist = music_api
+                    let mut artist = music_api
                         .search(&artist)
                         .unwrap()
                         .artists
                         .into_iter()
                         .next()
                         .unwrap();
-                    println!("{artist:#?}");
+                    music_api.fetch_songs(&mut artist);
                     artists.insert(artist.name.clone(), artist);
                 }
                 Args::List => {
                     println!("{:#?}", artists);
-                }
-                Args::Songs { artist } => {
-                    let artist = fuzzy_match::fuzzy_match(
-                        &artist,
-                        artists.iter().map(|(name, artist)| (name.as_str(), artist)),
-                    )
-                    .unwrap();
-                    let songs = music_api.songs(artist).unwrap().releases;
-                    println!("{songs:?}");
                 }
             },
             Err(e) => eprintln!("{}", e.render()),

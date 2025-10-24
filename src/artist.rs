@@ -9,18 +9,19 @@ pub struct Music {
 pub struct Artist {
     pub id: String,
     pub name: String,
+    pub songs: Option<Songs>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
     pub artists: Vec<Artist>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Song {
     pub id: String,
     pub title: String,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Songs {
     pub releases: Vec<Song>,
 }
@@ -45,24 +46,40 @@ impl Music {
             .json()
     }
     pub fn search(&self, query: &str) -> Result<Artists, reqwest::Error> {
-        self.get(
+        eprintln!("Finding {query}...");
+        let artists: Artists = self.get(
             Url::parse_with_params(
                 "https://www.musicbrainz.org/ws/2/artist",
                 [("query", query), ("fmt", "json")],
             )
             .unwrap(),
-        )
+        )?;
+        eprintln!(
+            "Found {} and {} others",
+            artists.artists.first().unwrap().name,
+            artists.artists.len() - 1
+        );
+        Ok(artists)
     }
-    pub fn songs(&self, artist: &Artist) -> Result<Songs, reqwest::Error> {
-        self.get(
-            Url::parse_with_params(
-                &format!(
-                    "https://www.musicbrainz.org/ws/2/release?artist={}",
-                    artist.id
-                ),
-                [("fmt", "json")],
+    pub fn fetch_songs(&self, artist: &mut Artist) {
+        eprintln!("Fetching {}'s songs...", artist.name);
+        let songs = self
+            .get(
+                Url::parse_with_params(
+                    &format!(
+                        "https://www.musicbrainz.org/ws/2/release?artist={}",
+                        artist.id
+                    ),
+                    [("fmt", "json")],
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        )
+            .unwrap();
+        artist.songs = Some(songs);
+        eprintln!(
+            "Found {} {} songs",
+            artist.songs.clone().unwrap().releases.len(),
+            artist.name
+        );
     }
 }
