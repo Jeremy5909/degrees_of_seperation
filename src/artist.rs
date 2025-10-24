@@ -1,35 +1,60 @@
-use reqwest::{IntoUrl, Url, blocking::Client};
-use serde::{Deserialize, Serialize};
+use std::env;
 
-pub struct Music {
-    client: Client,
-}
+use dotenv::dotenv;
+use reqwest::{
+    IntoUrl, Url,
+    blocking::Client,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Artist {
     pub id: String,
     pub name: String,
-    pub songs: Option<Vec<Song>>,
+}
+#[derive(Serialize, Deserialize)]
+pub struct ArtistsResponse {
+    pub artists: Artists,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
-    pub artists: Vec<Artist>,
+    pub items: Vec<Artist>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Song {
-    pub id: String,
-    pub title: String,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Recordings {
-    pub recordings: Vec<Song>,
+pub struct Music {
+    client: Client,
+    client_id: String,
+    client_secret: String,
+    access_token: String,
 }
 
 impl Music {
     pub fn new() -> Music {
+        dotenv().unwrap();
+        let client = Client::new();
+        let client_id = env::var("CLIENT_ID").unwrap();
+        let client_secret = env::var("CLIENT_SECRET").unwrap();
+        let response: Value = client
+            .post("https://accounts.spotify.com/api/token")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .form(&[
+                ("grant_type", "client_credentials"),
+                ("client_id", &client_id),
+                ("client_secret", &client_secret),
+            ])
+            .send()
+            .unwrap()
+            .json()
+            .unwrap();
+        let access_token = response["access_token"].as_str().unwrap().to_string();
+
         Music {
-            client: Client::new(),
+            client,
+            client_id,
+            client_secret,
+            access_token,
         }
     }
     fn get<T>(&self, req: impl IntoUrl) -> Result<T, reqwest::Error>
@@ -38,71 +63,24 @@ impl Music {
     {
         self.client
             .get(req)
-            .header(
-                "User-Agent",
-                "degrees-of-seperation/0.1 (jeremyherczeg@gmail.com)",
-            )
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
             .send()?
             .json()
     }
-    pub fn search(&self, query: &str) -> Result<Artists, reqwest::Error> {
+    pub fn search_artist(&self, query: &str) -> Result<Artists, reqwest::Error> {
         eprintln!("Finding {query}...");
-        let artists: Artists = self.get(
+        let artists: ArtistsResponse = self.get(
             Url::parse_with_params(
-                "https://www.musicbrainz.org/ws/2/artist",
-                [("query", query), ("fmt", "json")],
+                "https://api.spotify.com/v1/search",
+                [("q", query), ("type", "artist")],
             )
             .unwrap(),
         )?;
         eprintln!(
             "Found {} and {} others",
-            artists.artists.first().unwrap().name,
-            artists.artists.len() - 1
+            artists.artists.items.first().unwrap().name,
+            artists.artists.items.len() - 1
         );
-        Ok(artists)
-    }
-    pub fn fetch_songs(&self, artist: &mut Artist) {
-        eprintln!("Fetching {}'s songs...", artist.name);
-        let mut all_songs = Vec::new();
-        let mut offset = 0;
-        let mut page = 0;
-        let limit = 100;
-
-        loop {
-            let songs = self.get(
-                Url::parse_with_params(
-                    &format!(
-                        "https://www.musicbrainz.org/ws/2/recording?artist={}",
-                        artist.id
-                    ),
-                    [
-                        ("fmt", "json"),
-                        ("limit", &limit.to_string()),
-                        ("offset", &offset.to_string()),
-                    ],
-                )
-                .unwrap(),
-            );
-            if songs.is_err() {
-                eprintln!("uhh");
-                continue;
-            }
-            let songs: Recordings = songs.unwrap();
-            let release_count = songs.recordings.len();
-            all_songs.extend(songs.recordings);
-            offset += release_count;
-            page += 1;
-            eprintln!("Going to page {page}");
-
-            if release_count < limit {
-                break;
-            }
-        }
-        artist.songs = Some(all_songs);
-        eprintln!(
-            "Found {} {} songs",
-            artist.songs.clone().unwrap().len(),
-            artist.name
-        );
+        Ok(artists.artists)
     }
 }

@@ -44,14 +44,13 @@ fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist } => {
-                    let mut artist = music_api
-                        .search(&artist)
+                    let artist = music_api
+                        .search_artist(&artist)
                         .unwrap()
-                        .artists
+                        .items
                         .into_iter()
                         .next()
                         .unwrap();
-                    music_api.fetch_songs(&mut artist);
                     artists.insert(artist.name.clone(), artist);
                 }
                 Args::List => {
