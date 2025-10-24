@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, fmt::Display};
 
 use dotenv::dotenv;
 use reqwest::{
@@ -50,6 +50,19 @@ struct Track {
     artists: Vec<Artist>,
 }
 
+#[derive(Debug)]
+enum Entity {
+    Albums,
+    Artists,
+    Tracks,
+}
+impl Display for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let lower = format!("{:?}", self).to_lowercase();
+        write!(f, "{lower}")
+    }
+}
+
 pub struct Music {
     client: Client,
     client_id: String,
@@ -93,6 +106,19 @@ impl Music {
             .send()?
             .json()
     }
+    fn get_entities<T>(&self, lhs: Entity, id: &str, rhs: Entity) -> Result<T, reqwest::Error>
+    where
+        for<'a> T: Deserialize<'a>,
+    {
+        eprintln!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}");
+        self.get(
+            Url::parse_with_params(
+                &format!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}"),
+                [("limit", "50")],
+            )
+            .unwrap(),
+        )
+    }
     pub fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
         eprintln!("Finding {query}...");
         let artists: ArtistsResponse = self.get(
@@ -120,17 +146,17 @@ impl Music {
     }
     fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
         let tracks = self.get_artist_tracks(artist);
-        let mut featured_artists = ArtistSmall::new();
+        let mut collaborators = ArtistSmall::new();
         for track in tracks {
-            featured_artists.extend(
+            collaborators.extend(
                 track
                     .artists
                     .into_iter()
                     .map(|artist| (artist.name, artist.id)),
             );
         }
-        eprintln!("Found {} collaborators", featured_artists.len());
-        featured_artists
+        eprintln!("Found {} collaborators", collaborators.len());
+        collaborators
     }
     fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
         let albums = self.get_artist_albums(artist);
@@ -143,13 +169,7 @@ impl Music {
     fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
         let albums: Albums = self
-            .get(
-                Url::parse_with_params(
-                    &format!("https://api.spotify.com/v1/artists/{}/albums", artist.id),
-                    [("limit", "50")],
-                )
-                .unwrap(),
-            )
+            .get_entities(Entity::Artists, &artist.id, Entity::Albums)
             .unwrap();
         eprintln!("Found {} albums", albums.items.len());
 
@@ -158,13 +178,7 @@ impl Music {
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
         let tracks: Tracks = self
-            .get(
-                Url::parse_with_params(
-                    &format!("https://api.spotify.com/v1/albums/{}/tracks", album.id),
-                    [("limit", "50")],
-                )
-                .unwrap(),
-            )
+            .get_entities(Entity::Albums, &album.id, Entity::Tracks)
             .unwrap();
         eprintln!("Found {} songs", tracks.items.len());
         tracks.items
