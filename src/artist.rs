@@ -1,4 +1,4 @@
-use std::env;
+use std::{collections::HashMap, env};
 
 use dotenv::dotenv;
 use reqwest::{
@@ -13,7 +13,7 @@ use serde_json::Value;
 pub struct Artist {
     pub id: String,
     pub name: String,
-    albums: Option<Vec<Album>>,
+    collaborators: Option<HashMap<String, Artist>>,
 }
 #[derive(Serialize, Deserialize)]
 struct ArtistsResponse {
@@ -107,9 +107,30 @@ impl Music {
         let artists = artists.artists.items;
         let mut artist = artists.into_iter().next().unwrap();
 
-        let albums = self.get_artist_albums(&artist);
-        artist.albums = Some(albums);
+        artist.collaborators = Some(
+            self.get_artist_collaborators(&mut artist)
+                .into_iter()
+                .map(|artist| (artist.name.clone(), artist))
+                .collect(),
+        );
+
         Ok(artist)
+    }
+    fn get_artist_collaborators(&self, artist: &mut Artist) -> Vec<Artist> {
+        let tracks = self.get_artist_tracks(artist);
+        let mut featured_artists = Vec::new();
+        for track in tracks {
+            featured_artists.extend(track.artists);
+        }
+        featured_artists
+    }
+    fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
+        let albums = self.get_artist_albums(artist);
+        let mut total_tracks = Vec::new();
+        for album in albums {
+            total_tracks.extend(self.get_album_tracks(&album));
+        }
+        total_tracks
     }
     fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
@@ -120,13 +141,8 @@ impl Music {
             ))
             .unwrap();
         eprintln!("Found {} albums", albums.items.len());
-        let mut albums = albums.items;
 
-        for album in &mut albums {
-            album.tracks = Some(self.get_album_tracks(&album));
-        }
-
-        albums
+        albums.items
     }
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
