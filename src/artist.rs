@@ -9,7 +9,7 @@ pub struct Music {
 pub struct Artist {
     pub id: String,
     pub name: String,
-    pub songs: Option<Songs>,
+    pub songs: Option<Vec<Song>>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Artists {
@@ -22,8 +22,8 @@ pub struct Song {
     pub title: String,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Songs {
-    pub releases: Vec<Song>,
+pub struct Recordings {
+    pub recordings: Vec<Song>,
 }
 
 impl Music {
@@ -63,22 +63,45 @@ impl Music {
     }
     pub fn fetch_songs(&self, artist: &mut Artist) {
         eprintln!("Fetching {}'s songs...", artist.name);
-        let songs = self
-            .get(
+        let mut all_songs = Vec::new();
+        let mut offset = 0;
+        let mut page = 0;
+        let limit = 100;
+
+        loop {
+            let songs = self.get(
                 Url::parse_with_params(
                     &format!(
-                        "https://www.musicbrainz.org/ws/2/release?artist={}",
+                        "https://www.musicbrainz.org/ws/2/recording?artist={}",
                         artist.id
                     ),
-                    [("fmt", "json")],
+                    [
+                        ("fmt", "json"),
+                        ("limit", &limit.to_string()),
+                        ("offset", &offset.to_string()),
+                    ],
                 )
                 .unwrap(),
-            )
-            .unwrap();
-        artist.songs = Some(songs);
+            );
+            if songs.is_err() {
+                eprintln!("uhh");
+                continue;
+            }
+            let songs: Recordings = songs.unwrap();
+            let release_count = songs.recordings.len();
+            all_songs.extend(songs.recordings);
+            offset += release_count;
+            page += 1;
+            eprintln!("Going to page {page}");
+
+            if release_count < limit {
+                break;
+            }
+        }
+        artist.songs = Some(all_songs);
         eprintln!(
             "Found {} {} songs",
-            artist.songs.clone().unwrap().releases.len(),
+            artist.songs.clone().unwrap().len(),
             artist.name
         );
     }
