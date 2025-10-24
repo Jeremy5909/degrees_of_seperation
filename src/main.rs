@@ -15,6 +15,7 @@ mod artist;
 enum Args {
     Search { artist: String },
     List,
+    Songs { artist: String },
 }
 
 fn read_command() -> Vec<String> {
@@ -52,10 +53,19 @@ fn main() {
                         .next()
                         .unwrap();
                     println!("{artist:#?}");
-                    artists.insert(artist.id.clone(), artist);
+                    artists.insert(artist.name.clone(), artist);
                 }
                 Args::List => {
                     println!("{:#?}", artists);
+                }
+                Args::Songs { artist } => {
+                    let artist = fuzzy_match::fuzzy_match(
+                        &artist,
+                        artists.iter().map(|(name, artist)| (name.as_str(), artist)),
+                    )
+                    .unwrap();
+                    let songs = music_api.songs(artist).unwrap().releases;
+                    println!("{songs:?}");
                 }
             },
             Err(e) => eprintln!("{}", e.render()),
