@@ -9,12 +9,15 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub type ArtistSmall = HashMap<String, String>;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Artist {
     pub id: String,
     pub name: String,
-    collaborators: Option<HashMap<String, Artist>>,
+    collaborators: Option<ArtistSmall>,
 }
+
 #[derive(Serialize, Deserialize)]
 struct ArtistsResponse {
     pub artists: Artists,
@@ -110,18 +113,23 @@ impl Music {
         artist.collaborators = Some(
             self.get_artist_collaborators(&mut artist)
                 .into_iter()
-                .map(|artist| (artist.name.clone(), artist))
                 .collect(),
         );
 
         Ok(artist)
     }
-    fn get_artist_collaborators(&self, artist: &mut Artist) -> Vec<Artist> {
+    fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
         let tracks = self.get_artist_tracks(artist);
-        let mut featured_artists = Vec::new();
+        let mut featured_artists = ArtistSmall::new();
         for track in tracks {
-            featured_artists.extend(track.artists);
+            featured_artists.extend(
+                track
+                    .artists
+                    .into_iter()
+                    .map(|artist| (artist.name, artist.id)),
+            );
         }
+        eprintln!("Found {} collaborators", featured_artists.len());
         featured_artists
     }
     fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
