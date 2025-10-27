@@ -139,6 +139,7 @@ impl Music {
         lhs: Entity,
         id: &str,
         rhs: Entity,
+        params: Option<Vec<(&str, &str)>>,
         number_pages: Option<usize>,
     ) -> Result<Vec<T::Item>, reqwest::Error>
     where
@@ -150,14 +151,20 @@ impl Music {
         let mut entities: Vec<T::Item> = Vec::new();
 
         loop {
+            let offset_str = (page * limit).to_string();
+            let limit_str = limit.to_string();
+            let mut all_params = vec![
+                ("limit", limit_str.as_str()),
+                ("offset", offset_str.as_str()),
+            ];
+            if let Some(extra_params) = &params {
+                all_params.extend(extra_params);
+            }
             let fetched_entities: T = self
                 .get(
                     Url::parse_with_params(
                         &format!("https://api.spotify.com/v1/{lhs}/{id}/{rhs}"),
-                        [
-                            ("limit", limit.to_string()),
-                            ("offset", (page * limit).to_string()),
-                        ],
+                        all_params,
                     )
                     .unwrap(),
                 )
@@ -231,7 +238,13 @@ impl Music {
     fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
         let albums: Vec<Album> = self
-            .get_entities::<Albums>(Entity::Artists, &artist.id, Entity::Albums, None)
+            .get_entities::<Albums>(
+                Entity::Artists,
+                &artist.id,
+                Entity::Albums,
+                Some(vec![("include_groups", "album,single")]),
+                None,
+            )
             .unwrap();
         eprintln!("Found {} albums", albums.len());
 
@@ -240,7 +253,7 @@ impl Music {
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
         let tracks: Vec<Track> = self
-            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, None)
+            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, None, None)
             .unwrap();
         eprintln!("Found {} songs", tracks.len());
         tracks
