@@ -6,7 +6,7 @@ use reqwest::{
     blocking::Client,
     header::{AUTHORIZATION, CONTENT_TYPE},
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
 pub type ArtistSmall = HashMap<String, String>;
@@ -134,17 +134,14 @@ impl Music {
             .send()?
             .json()
     }
-    fn get_entities<T>(
+    fn get_entities<T: IntoIterator + DeserializeOwned>(
         &self,
         lhs: Entity,
         id: &str,
         rhs: Entity,
         params: Option<Vec<(&str, &str)>>,
         number_pages: Option<usize>,
-    ) -> Result<Vec<T::Item>, reqwest::Error>
-    where
-        for<'a> T: IntoIterator + Deserialize<'a>,
-    {
+    ) -> Result<Vec<T::Item>, reqwest::Error> {
         let mut page = 0;
         let limit = 50;
 
