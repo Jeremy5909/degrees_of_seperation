@@ -54,8 +54,16 @@ fn main() {
                         &artist,
                         artists.clone().iter().map(|(name, id)| (name.as_str(), id)),
                     ) {
-                        let deleted = artists.remove(&matched_artist.name);
-                        println!("Deleted {}", deleted.unwrap().name);
+                        println!("Delete '{}'? y/n", matched_artist.name);
+                        let mut answer = String::new();
+                        stdin().read_line(&mut answer).unwrap();
+                        match answer.as_str() {
+                            "y" | "yes" => {
+                                artists.remove(&matched_artist.name);
+                                println!("'{}' deleted", matched_artist.name);
+                            }
+                            _ => println!("Canceled"),
+                        }
                     } else {
                         println!("Artist not found");
                     }

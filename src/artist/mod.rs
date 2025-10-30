@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fmt::Display, vec::IntoIter};
+use std::{collections::HashMap, env, fmt::Display};
 
 use dotenv::dotenv;
 use reqwest::{
@@ -9,6 +9,10 @@ use reqwest::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
+use crate::artist::responses::{Albums, ArtistsResponse, Tracks};
+
+mod responses;
+
 pub type ArtistSmall = HashMap<String, String>;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -18,56 +22,11 @@ pub struct Artist {
     collaborators: Option<ArtistSmall>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct ArtistsResponse {
-    pub artists: Artists,
-}
-impl IntoIterator for ArtistsResponse {
-    type Item = Artist;
-
-    type IntoIter = IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.artists.items.into_iter()
-    }
-}
-#[derive(Serialize, Deserialize)]
-pub struct Artists {
-    pub items: Vec<Artist>,
-}
-
-#[derive(Deserialize)]
-struct Albums {
-    items: Vec<Album>,
-}
-impl IntoIterator for Albums {
-    type Item = Album;
-
-    type IntoIter = IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
-    }
-}
 #[derive(Deserialize, Debug, Clone, Serialize)]
 struct Album {
     name: String,
     id: String,
     tracks: Option<Vec<Track>>,
-}
-
-#[derive(Deserialize, Debug, Clone, Serialize)]
-struct Tracks {
-    items: Vec<Track>,
-}
-impl IntoIterator for Tracks {
-    type Item = Track;
-
-    type IntoIter = IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
-    }
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
