@@ -98,7 +98,7 @@ impl Music {
         lhs: Entity,
         id: &str,
         rhs: Entity,
-        params: Option<Vec<(&str, &str)>>,
+        params: Vec<(&str, &str)>,
         number_pages: Option<usize>,
     ) -> Result<Vec<T::Item>, reqwest::Error> {
         let mut page = 0;
@@ -113,9 +113,9 @@ impl Music {
                 ("limit", limit_str.as_str()),
                 ("offset", offset_str.as_str()),
             ];
-            if let Some(extra_params) = &params {
-                all_params.extend(extra_params);
-            }
+
+            all_params.extend(params.clone());
+
             let fetched_entities: T = self
                 .get(
                     Url::parse_with_params(
@@ -198,7 +198,7 @@ impl Music {
                 Entity::Artists,
                 &artist.id,
                 Entity::Albums,
-                Some(vec![("include_groups", "album,single")]),
+                vec![("include_groups", "album,single")],
                 None,
             )
             .unwrap();
@@ -209,7 +209,7 @@ impl Music {
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         eprintln!("Finding {}'s songs...", album.name);
         let tracks: Vec<Track> = self
-            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, None, None)
+            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
             .unwrap();
         eprintln!("Found {} songs", tracks.len());
         tracks

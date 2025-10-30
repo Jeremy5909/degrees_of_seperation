@@ -69,7 +69,14 @@ fn main() {
                     }
                 }
                 Args::List => {
-                    println!("{:#?}", artists);
+                    println!(
+                        "{}",
+                        artists
+                            .iter()
+                            .map(|artist| artist.0.clone())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
                 }
             },
             Err(e) => eprintln!("{}", e.render()),
