@@ -6,6 +6,7 @@ use std::{
 };
 
 use clap::Parser;
+use fuzzy_match::fuzzy_match;
 
 use crate::artist::{Artist, Music};
 
@@ -14,6 +15,7 @@ mod artist;
 #[derive(Parser, Debug)]
 enum Args {
     Search { artist: String },
+    Delete { artist: String },
     List,
 }
 
@@ -46,6 +48,17 @@ fn main() {
                 Args::Search { artist } => {
                     let artist = music_api.search_artist(&artist).unwrap();
                     artists.insert(artist.name.clone(), artist);
+                }
+                Args::Delete { artist } => {
+                    if let Some(matched_artist) = fuzzy_match(
+                        &artist,
+                        artists.clone().iter().map(|(name, id)| (name.as_str(), id)),
+                    ) {
+                        let deleted = artists.remove(&matched_artist.name);
+                        println!("Deleted {}", deleted.unwrap().name);
+                    } else {
+                        println!("Artist not found");
+                    }
                 }
                 Args::List => {
                     println!("{:#?}", artists);
