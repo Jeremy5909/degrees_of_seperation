@@ -19,7 +19,7 @@ pub type ArtistSmall = HashMap<String, String>;
 pub struct Artist {
     pub id: String,
     pub name: String,
-    collaborators: Option<ArtistSmall>,
+    pub collaborators: Option<ArtistSmall>,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -127,7 +127,6 @@ impl Music {
                 .unwrap();
             let fetched_entities: Vec<_> = fetched_entities.into_iter().collect();
             let length = fetched_entities.len();
-            eprintln!("got {}", length);
             entities.extend(fetched_entities);
             if length < limit {
                 break;
@@ -139,13 +138,10 @@ impl Music {
             }
 
             page += 1;
-            println!("going to page {page}");
         }
-        println!("done fetching all entities");
         Ok(entities)
     }
     pub fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
-        eprintln!("Finding {query}...");
         let artists: ArtistsResponse = self.get(
             Url::parse_with_params(
                 "https://api.spotify.com/v1/search",
@@ -153,11 +149,6 @@ impl Music {
             )
             .unwrap(),
         )?;
-        eprintln!(
-            "Found {} and {} others",
-            artists.artists.items.first().unwrap().name,
-            artists.artists.items.len() - 1
-        );
         let artists = artists.artists.items;
         let mut artist = artists.into_iter().next().unwrap();
 
@@ -207,11 +198,9 @@ impl Music {
         albums
     }
     fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
-        eprintln!("Finding {}'s songs...", album.name);
         let tracks: Vec<Track> = self
             .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
             .unwrap();
-        eprintln!("Found {} songs", tracks.len());
         tracks
     }
 }

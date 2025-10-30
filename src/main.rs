@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{self},
     io::{Write, stdin, stdout},
     iter,
@@ -14,8 +14,14 @@ mod artist;
 
 #[derive(Parser, Debug)]
 enum Args {
-    Search { artist: String },
-    Delete { artist: String },
+    Search {
+        artist: String,
+        #[arg(default_value_t = 0, short = 'n')]
+        recursion: usize,
+    },
+    Delete {
+        artist: String,
+    },
     List,
 }
 
@@ -26,6 +32,27 @@ fn read_command() -> Vec<String> {
     stdin().read_line(&mut input).unwrap();
     let input = input.trim();
     shlex::split(input).unwrap()
+}
+
+fn search(name: String, n: usize, music_api: &Music, visited: &mut HashSet<String>) -> Vec<Artist> {
+    if visited.contains(&name) {
+        return Vec::new();
+    }
+    let mut total_artists = Vec::new();
+    visited.insert(name.clone());
+    let artist = music_api.search_artist(&name).unwrap();
+    let collabs = artist.collaborators.clone().unwrap_or_default();
+    if n == 0 {
+        return total_artists;
+    }
+    total_artists.push(artist);
+
+    for (collab_name, _) in collabs {
+        let mut collabs = search(collab_name, n - 1, music_api, visited);
+        total_artists.append(&mut collabs);
+    }
+
+    total_artists
 }
 
 fn main() {
@@ -45,9 +72,14 @@ fn main() {
 
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
-                Args::Search { artist } => {
-                    let artist = music_api.search_artist(&artist).unwrap();
-                    artists.insert(artist.name.clone(), artist);
+                Args::Search { artist, recursion } => {
+                    let mut visited = HashSet::new();
+                    let all_artists = search(artist, recursion, &music_api, &mut visited);
+                    artists.extend(
+                        all_artists
+                            .into_iter()
+                            .map(|artist| (artist.name.clone(), artist)),
+                    );
                 }
                 Args::Delete { artist } => {
                     if let Some(matched_artist) = fuzzy_match(
@@ -57,7 +89,7 @@ fn main() {
                         println!("Delete '{}'? y/n", matched_artist.name);
                         let mut answer = String::new();
                         stdin().read_line(&mut answer).unwrap();
-                        match answer.as_str() {
+                        match answer.trim() {
                             "y" | "yes" => {
                                 artists.remove(&matched_artist.name);
                                 println!("'{}' deleted", matched_artist.name);
