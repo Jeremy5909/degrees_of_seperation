@@ -23,14 +23,14 @@ pub struct Artist {
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
-struct Album {
+pub struct Album {
     name: String,
     id: String,
     tracks: Option<Vec<Track>>,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
-struct Track {
+pub struct Track {
     name: String,
     id: String,
     artists: Vec<Artist>,

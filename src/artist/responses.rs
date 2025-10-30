@@ -19,7 +19,7 @@ impl IntoIterator for ArtistsResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Artists {
+pub(super) struct Artists {
     pub items: Vec<Artist>,
 }
 
