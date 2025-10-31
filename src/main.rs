@@ -125,5 +125,6 @@ async fn main() {
         }
 
         fs::write("save.json", serde_json::to_string_pretty(&artists).unwrap()).unwrap();
+        eprintln!("Saved!");
     }
 }

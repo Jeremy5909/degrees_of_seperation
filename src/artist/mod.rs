@@ -1,6 +1,7 @@
 use std::{collections::HashMap, env, fmt::Display};
 
 use dotenv::dotenv;
+use futures::future;
 use reqwest::{
     Client, IntoUrl, Url,
     header::{AUTHORIZATION, CONTENT_TYPE},
@@ -125,10 +126,10 @@ where {
                     )
                     .unwrap(),
                 )
-                .await
-                .unwrap();
+                .await?;
             let fetched_entities: Vec<_> = fetched_entities.into_iter().collect();
             let length = fetched_entities.len();
+            eprintln!("Got {length} {rhs} from {lhs}");
             entities.extend(fetched_entities);
             if length < limit {
                 break;
@@ -181,11 +182,14 @@ where {
     }
     async fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
         let albums = self.get_artist_albums(artist).await;
-        let mut total_tracks = Vec::new();
-        for album in albums {
-            total_tracks.extend(self.get_album_tracks(&album).await);
-        }
-        total_tracks
+
+        let futures: Vec<_> = albums
+            .iter()
+            .map(|album| self.get_album_tracks(&album))
+            .collect();
+        let results = future::join_all(futures).await;
+
+        results.into_iter().flatten().collect()
     }
     async fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
@@ -198,16 +202,14 @@ where {
                 None,
             )
             .await
-            .unwrap();
+            .unwrap_or_default();
         eprintln!("Found {} albums", albums.len());
 
         albums
     }
     async fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
-        let tracks: Vec<Track> = self
-            .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
+        self.get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
             .await
-            .unwrap();
-        tracks
+            .unwrap_or_default()
     }
 }
