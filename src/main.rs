@@ -34,29 +34,39 @@ fn read_command() -> Vec<String> {
     shlex::split(input).unwrap()
 }
 
-fn search(name: String, n: usize, music_api: &Music, visited: &mut HashSet<String>) -> Vec<Artist> {
+async fn search(
+    name: String,
+    n: usize,
+    music_api: &Music,
+    visited: &mut HashSet<String>,
+) -> Vec<Artist> {
     if visited.contains(&name) {
         return Vec::new();
     }
-    let mut total_artists = Vec::new();
     visited.insert(name.clone());
-    let artist = music_api.search_artist(&name).unwrap();
+
+    let mut total_artists = Vec::new();
+    let artist = match music_api.search_artist(&name).await {
+        Ok(artist) => artist,
+        Err(_) => return Vec::new(),
+    };
     let collabs = artist.collaborators.clone().unwrap_or_default();
+    total_artists.push(artist);
     if n == 0 {
         return total_artists;
     }
-    total_artists.push(artist);
 
     for (collab_name, _) in collabs {
-        let mut collabs = search(collab_name, n - 1, music_api, visited);
+        let mut collabs = Box::pin(search(collab_name, n - 1, music_api, visited)).await;
         total_artists.append(&mut collabs);
     }
 
     total_artists
 }
 
-fn main() {
-    let music_api = Music::new();
+#[tokio::main]
+async fn main() {
+    let music_api = Music::new().await;
 
     let save_file = fs::read_to_string("save.json").unwrap_or_default();
 
@@ -74,7 +84,7 @@ fn main() {
             Ok(command) => match command {
                 Args::Search { artist, recursion } => {
                     let mut visited = HashSet::new();
-                    let all_artists = search(artist, recursion, &music_api, &mut visited);
+                    let all_artists = search(artist, recursion, &music_api, &mut visited).await;
                     artists.extend(
                         all_artists
                             .into_iter()

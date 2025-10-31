@@ -2,8 +2,7 @@ use std::{collections::HashMap, env, fmt::Display};
 
 use dotenv::dotenv;
 use reqwest::{
-    IntoUrl, Url,
-    blocking::Client,
+    Client, IntoUrl, Url,
     header::{AUTHORIZATION, CONTENT_TYPE},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -57,7 +56,7 @@ pub struct Music {
     access_token: String,
 }
 impl Music {
-    pub fn new() -> Music {
+    pub async fn new() -> Music {
         dotenv().unwrap();
         let client = Client::new();
         let client_id = env::var("CLIENT_ID").unwrap();
@@ -71,8 +70,10 @@ impl Music {
                 ("client_secret", &client_secret),
             ])
             .send()
+            .await
             .unwrap()
             .json()
+            .await
             .unwrap();
         let access_token = response["access_token"].as_str().unwrap().to_string();
 
@@ -83,17 +84,17 @@ impl Music {
             access_token,
         }
     }
-    fn get<T>(&self, req: impl IntoUrl) -> Result<T, reqwest::Error>
-    where
-        for<'a> T: Deserialize<'a>,
-    {
+    async fn get<T: DeserializeOwned>(&self, req: impl IntoUrl) -> Result<T, reqwest::Error>
+where {
         self.client
             .get(req)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
-            .send()?
+            .send()
+            .await?
             .json()
+            .await
     }
-    fn get_entities<T: IntoIterator + DeserializeOwned>(
+    async fn get_entities<T: IntoIterator + DeserializeOwned>(
         &self,
         lhs: Entity,
         id: &str,
@@ -124,6 +125,7 @@ impl Music {
                     )
                     .unwrap(),
                 )
+                .await
                 .unwrap();
             let fetched_entities: Vec<_> = fetched_entities.into_iter().collect();
             let length = fetched_entities.len();
@@ -141,27 +143,30 @@ impl Music {
         }
         Ok(entities)
     }
-    pub fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
-        let artists: ArtistsResponse = self.get(
-            Url::parse_with_params(
-                "https://api.spotify.com/v1/search",
-                [("q", query), ("type", "artist")],
+    pub async fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
+        let artists: ArtistsResponse = self
+            .get(
+                Url::parse_with_params(
+                    "https://api.spotify.com/v1/search",
+                    [("q", query), ("type", "artist")],
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        )?;
+            .await?;
         let artists = artists.artists.items;
         let mut artist = artists.into_iter().next().unwrap();
 
         artist.collaborators = Some(
             self.get_artist_collaborators(&mut artist)
+                .await
                 .into_iter()
                 .collect(),
         );
 
         Ok(artist)
     }
-    fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
-        let tracks = self.get_artist_tracks(artist);
+    pub async fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
+        let tracks = self.get_artist_tracks(artist).await;
         let mut collaborators = ArtistSmall::new();
         for track in tracks {
             collaborators.extend(
@@ -174,15 +179,15 @@ impl Music {
         eprintln!("Found {} collaborators", collaborators.len());
         collaborators
     }
-    fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
-        let albums = self.get_artist_albums(artist);
+    async fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
+        let albums = self.get_artist_albums(artist).await;
         let mut total_tracks = Vec::new();
         for album in albums {
-            total_tracks.extend(self.get_album_tracks(&album));
+            total_tracks.extend(self.get_album_tracks(&album).await);
         }
         total_tracks
     }
-    fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
+    async fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
         let albums: Vec<Album> = self
             .get_entities::<Albums>(
@@ -192,14 +197,16 @@ impl Music {
                 vec![("include_groups", "album,single")],
                 None,
             )
+            .await
             .unwrap();
         eprintln!("Found {} albums", albums.len());
 
         albums
     }
-    fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
+    async fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
         let tracks: Vec<Track> = self
             .get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
+            .await
             .unwrap();
         tracks
     }
