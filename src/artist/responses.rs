@@ -2,7 +2,7 @@ use std::vec;
 
 use serde::{Deserialize, Serialize};
 
-use crate::artist::{Album, Artist, Track};
+use crate::artist::entities::{Album, Artist, Track};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct ArtistsResponse {

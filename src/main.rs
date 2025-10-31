@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{self},
     io::{Write, stdin, stdout},
     iter,
@@ -8,7 +8,7 @@ use std::{
 use clap::Parser;
 use fuzzy_match::fuzzy_match;
 
-use crate::artist::{Artist, Music};
+use crate::artist::{Music, entities::Artist};
 
 mod artist;
 
@@ -34,36 +34,6 @@ fn read_command() -> Vec<String> {
     shlex::split(input).unwrap()
 }
 
-async fn search(
-    name: String,
-    n: usize,
-    music_api: &Music,
-    visited: &mut HashSet<String>,
-) -> Vec<Artist> {
-    if visited.contains(&name) {
-        return Vec::new();
-    }
-    visited.insert(name.clone());
-
-    let mut total_artists = Vec::new();
-    let artist = match music_api.search_artist(&name).await {
-        Ok(artist) => artist,
-        Err(_) => return Vec::new(),
-    };
-    let collabs = artist.collaborators.clone().unwrap_or_default();
-    total_artists.push(artist);
-    if n == 0 {
-        return total_artists;
-    }
-
-    for (collab_name, _) in collabs {
-        let mut collabs = Box::pin(search(collab_name, n - 1, music_api, visited)).await;
-        total_artists.append(&mut collabs);
-    }
-
-    total_artists
-}
-
 #[tokio::main]
 async fn main() {
     let music_api = Music::new().await;
@@ -83,8 +53,8 @@ async fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist, recursion } => {
-                    let mut visited = HashSet::new();
-                    let all_artists = search(artist, recursion, &music_api, &mut visited).await;
+                    let visited = Default::default();
+                    let all_artists = music_api.search_recursive(artist, recursion, visited).await;
                     artists.extend(
                         all_artists
                             .into_iter()
