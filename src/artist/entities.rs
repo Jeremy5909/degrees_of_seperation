@@ -15,11 +15,11 @@ pub struct Artist {
 pub struct Album {
     pub(crate) name: String,
     pub(crate) id: String,
-    pub(crate) tracks: Option<Vec<Track>>,
+    pub(crate) tracks: Option<Vec<Song>>,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
-pub struct Track {
+pub struct Song {
     pub(crate) name: String,
     pub(crate) id: String,
     pub(crate) artists: Vec<Artist>,

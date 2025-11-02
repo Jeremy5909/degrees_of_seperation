@@ -6,8 +6,8 @@ use serde::de::DeserializeOwned;
 use tokio::time::sleep;
 
 use crate::artist::{
-    Albums, ArtistsResponse, Music, Tracks,
-    entities::{Album, Artist, ArtistSmall, Entity, Track},
+    Albums, Artists, Music, Songs,
+    entities::{Album, Artist, ArtistSmall, Entity, Song},
 };
 
 impl Music {
@@ -92,7 +92,7 @@ where {
         Ok(entities)
     }
     pub async fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
-        let artists: ArtistsResponse = self
+        let artists: Artists = self
             .get(
                 Url::parse_with_params(
                     "https://api.spotify.com/v1/search",
@@ -101,7 +101,7 @@ where {
                 .unwrap(),
             )
             .await?;
-        let artists = artists.artists.items;
+        let artists: Vec<_> = artists.into_iter().collect();
         let mut artist = artists.into_iter().next().unwrap();
 
         artist.collaborators = Some(
@@ -114,7 +114,7 @@ where {
         Ok(artist)
     }
     pub async fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
-        let tracks = self.get_artist_tracks(artist).await;
+        let tracks = self.get_artist_songs(artist).await;
         let mut collaborators = ArtistSmall::new();
         for track in tracks {
             collaborators.extend(
@@ -127,14 +127,11 @@ where {
         eprintln!("Found {} collaborators", collaborators.len());
         collaborators
     }
-    async fn get_artist_tracks(&self, artist: &Artist) -> Vec<Track> {
+    async fn get_artist_songs(&self, artist: &Artist) -> Vec<Song> {
         let albums = self.get_artist_albums(artist).await;
 
-        let futures: Vec<_> = albums
-            .iter()
-            .map(|album| self.get_album_tracks(&album))
-            .collect();
-        let results = future::join_all(futures).await;
+        let results =
+            future::join_all(albums.iter().map(|album| self.get_album_songs(&album))).await;
 
         results.into_iter().flatten().collect()
     }
@@ -154,8 +151,8 @@ where {
 
         albums
     }
-    async fn get_album_tracks(&self, album: &Album) -> Vec<Track> {
-        self.get_entities::<Tracks>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
+    async fn get_album_songs(&self, album: &Album) -> Vec<Song> {
+        self.get_entities::<Songs>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
             .await
             .unwrap_or_default()
     }

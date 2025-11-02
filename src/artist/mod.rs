@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::artist::{
     entities::Artist,
-    responses::{Albums, ArtistsResponse, Tracks},
+    responses::{Albums, Artists, Songs},
 };
 
 pub mod entities;
