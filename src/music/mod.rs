@@ -8,6 +8,7 @@ use reqwest::{
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use thiserror::Error;
 use tokio::time::sleep;
 
 use crate::music::{
@@ -19,21 +20,12 @@ pub mod entities;
 pub mod get_entities;
 pub mod responses;
 
-#[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum Error {
-    Reqest(reqwest::Error),
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    #[error("Error {}: {}", .0.as_u16(), .0.canonical_reason().unwrap_or("Unknown"))]
     StatusCode(StatusCode),
-}
-impl From<reqwest::Error> for Error {
-    fn from(value: reqwest::Error) -> Self {
-        Self::Reqest(value)
-    }
-}
-impl From<reqwest::StatusCode> for Error {
-    fn from(value: reqwest::StatusCode) -> Self {
-        Self::StatusCode(value)
-    }
 }
 
 #[allow(dead_code)]
@@ -89,14 +81,16 @@ where {
                             wait_secs = secs;
                         }
                     }
-                    if wait_secs > 5 {
+                    if wait_secs > 10 {
                         eprintln!("Rate limited - waiting {}s...", wait_secs);
                     }
                     sleep(Duration::from_secs(wait_secs)).await;
                     continue;
                 }
                 StatusCode::OK => return resp.json().await.map_err(|e| e.into()),
-                e => return Err(e.into()),
+                e => {
+                    return Err(Error::StatusCode(e));
+                }
             }
         }
     }
