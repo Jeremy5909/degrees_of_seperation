@@ -11,14 +11,14 @@ pub struct Artist {
     pub collaborators: Option<ArtistSmall>,
 }
 
-#[derive(Deserialize, Debug, Clone, Serialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Album {
     pub(crate) name: String,
     pub(crate) id: String,
     pub(crate) tracks: Option<Vec<Song>>,
 }
 
-#[derive(Deserialize, Debug, Clone, Serialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Song {
     pub(crate) name: String,
     pub(crate) id: String,

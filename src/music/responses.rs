@@ -1,13 +1,13 @@
 use std::vec;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::music::entities::{Album, Artist, Song};
 
 /////////////
 // Artists //
 /////////////
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub(super) struct Artists {
     artists: InnerArtists,
 }
@@ -20,7 +20,7 @@ impl IntoIterator for Artists {
         self.artists.into_iter()
     }
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct InnerArtists {
     items: Vec<Artist>,
 }
@@ -54,7 +54,7 @@ impl IntoIterator for Albums {
 ///////////
 // Songs //
 ///////////
-#[derive(Deserialize, Debug, Clone, Serialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub(super) struct Songs {
     items: Vec<Song>,
 }
