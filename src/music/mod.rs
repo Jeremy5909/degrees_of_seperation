@@ -1,10 +1,10 @@
-use std::{default, env};
+use std::env;
 
 use dotenv::dotenv;
-use reqwest::{Client, header::CONTENT_TYPE};
+use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
 use serde_json::Value;
 
-use crate::artist::{
+use crate::music::{
     entities::Artist,
     responses::{Albums, Artists, Songs},
 };
@@ -12,6 +12,22 @@ use crate::artist::{
 pub mod entities;
 pub mod get_functions;
 pub mod responses;
+
+#[derive(Debug)]
+pub enum Error {
+    Reqest(reqwest::Error),
+    StatusCode(StatusCode),
+}
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Reqest(value)
+    }
+}
+impl From<reqwest::StatusCode> for Error {
+    fn from(value: reqwest::StatusCode) -> Self {
+        Self::StatusCode(value)
+    }
+}
 
 #[allow(dead_code)]
 pub struct Music {
@@ -52,7 +68,10 @@ impl Music {
     pub async fn search_recursive(&self, name: &str, n: usize) -> Vec<Artist> {
         let mut artists = Vec::new();
 
-        let artist = self.search_artist(name).await.unwrap();
+        let Ok(artist) = self.search_artist(name).await else {
+            return artists;
+        };
+
         artists.push(artist.clone());
 
         if n == 0 {

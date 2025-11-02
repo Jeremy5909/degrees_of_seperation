@@ -5,16 +5,13 @@ use reqwest::{IntoUrl, StatusCode, Url, header::AUTHORIZATION};
 use serde::de::DeserializeOwned;
 use tokio::time::sleep;
 
-use crate::artist::{
-    Albums, Artists, Music, Songs,
+use crate::music::{
+    self, Albums, Artists, Music, Songs,
     entities::{Album, Artist, ArtistSmall, Entity, Song},
 };
 
 impl Music {
-    async fn get<T: DeserializeOwned>(
-        &self,
-        req: impl IntoUrl + Clone,
-    ) -> Result<T, reqwest::Error>
+    async fn get<T: DeserializeOwned>(&self, req: impl IntoUrl + Clone) -> Result<T, music::Error>
 where {
         loop {
             let resp = self
@@ -35,11 +32,8 @@ where {
                     sleep(Duration::from_secs(wait_secs)).await;
                     continue;
                 }
-                StatusCode::OK => return resp.json().await,
-                e => {
-                    eprintln!("ERROR: {e}, continuing...");
-                    continue;
-                }
+                StatusCode::OK => return resp.json().await.map_err(|e| e.into()),
+                e => return Err(e.into()),
             }
         }
     }
@@ -50,7 +44,7 @@ where {
         rhs: Entity,
         params: Vec<(&str, &str)>,
         number_pages: Option<usize>,
-    ) -> Result<Vec<T::Item>, reqwest::Error> {
+    ) -> Result<Vec<T::Item>, music::Error> {
         let mut page = 0;
         let limit = 50;
 
@@ -91,7 +85,7 @@ where {
         }
         Ok(entities)
     }
-    pub async fn search_artist(&self, query: &str) -> Result<Artist, reqwest::Error> {
+    pub async fn search_artist(&self, query: &str) -> Result<Artist, music::Error> {
         let artists: Artists = self
             .get(
                 Url::parse_with_params(
@@ -152,7 +146,7 @@ where {
         albums
     }
     async fn get_album_songs(&self, album: &Album) -> Vec<Song> {
-        self.get_entities::<Songs>(Entity::Albums, &album.id, Entity::Tracks, vec![], None)
+        self.get_entities::<Songs>(Entity::Albums, &album.id, Entity::Songs, vec![], None)
             .await
             .unwrap_or_default()
     }

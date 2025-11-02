@@ -8,9 +8,9 @@ use std::{
 use clap::Parser;
 use fuzzy_match::fuzzy_match;
 
-use crate::artist::{Music, entities::Artist};
+use crate::music::{Music, entities::Artist};
 
-mod artist;
+mod music;
 
 #[derive(Parser, Debug)]
 enum Args {

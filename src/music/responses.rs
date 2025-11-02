@@ -2,7 +2,7 @@ use std::vec;
 
 use serde::{Deserialize, Serialize};
 
-use crate::artist::entities::{Album, Artist, Song};
+use crate::music::entities::{Album, Artist, Song};
 
 /////////////
 // Artists //

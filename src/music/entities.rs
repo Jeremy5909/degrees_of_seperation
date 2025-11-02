@@ -29,11 +29,15 @@ pub struct Song {
 pub(super) enum Entity {
     Albums,
     Artists,
-    Tracks,
+    Songs,
 }
 impl Display for Entity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let lower = format!("{:?}", self).to_lowercase();
-        write!(f, "{lower}")
+        let a = match self {
+            Self::Albums => "albums",
+            Self::Artists => "artists",
+            Self::Songs => "tracks",
+        };
+        write!(f, "{a}")
     }
 }
