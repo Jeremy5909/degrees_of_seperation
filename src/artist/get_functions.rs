@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use futures::future;
-use reqwest::{IntoUrl, Url, header::AUTHORIZATION};
+use reqwest::{IntoUrl, StatusCode, Url, header::AUTHORIZATION};
 use serde::de::DeserializeOwned;
+use tokio::time::sleep;
 
 use crate::artist::{
     Albums, ArtistsResponse, Music, Tracks,
@@ -8,15 +11,37 @@ use crate::artist::{
 };
 
 impl Music {
-    async fn get<T: DeserializeOwned>(&self, req: impl IntoUrl) -> Result<T, reqwest::Error>
+    async fn get<T: DeserializeOwned>(
+        &self,
+        req: impl IntoUrl + Clone,
+    ) -> Result<T, reqwest::Error>
 where {
-        self.client
-            .get(req)
-            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
-            .send()
-            .await?
-            .json()
-            .await
+        loop {
+            let resp = self
+                .client
+                .get(req.clone())
+                .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+                .send()
+                .await?;
+            match resp.status() {
+                StatusCode::TOO_MANY_REQUESTS => {
+                    let mut wait_secs = 1;
+                    if let Some(wait) = resp.headers().get("Retry-after") {
+                        if let Ok(secs) = wait.to_str().unwrap_or("1").parse::<u64>() {
+                            wait_secs = secs;
+                        }
+                    }
+                    println!("Rate limited - waiting {}s...", wait_secs);
+                    sleep(Duration::from_secs(wait_secs)).await;
+                    continue;
+                }
+                StatusCode::OK => return resp.json().await,
+                e => {
+                    eprintln!("ERROR: {e}, continuing...");
+                    continue;
+                }
+            }
+        }
     }
     async fn get_entities<T: IntoIterator + DeserializeOwned>(
         &self,
@@ -52,7 +77,6 @@ where {
                 .await?;
             let fetched_entities: Vec<_> = fetched_entities.into_iter().collect();
             let length = fetched_entities.len();
-            eprintln!("Got {length} {rhs} from {lhs}");
             entities.extend(fetched_entities);
             if length < limit {
                 break;

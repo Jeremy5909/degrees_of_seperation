@@ -1,10 +1,8 @@
-use std::{collections::HashSet, env, sync::Arc};
+use std::{default, env};
 
 use dotenv::dotenv;
-use futures::future;
 use reqwest::{Client, header::CONTENT_TYPE};
 use serde_json::Value;
-use tokio::sync::Mutex;
 
 use crate::artist::{
     entities::Artist,
@@ -51,40 +49,24 @@ impl Music {
             access_token,
         }
     }
-    pub async fn search_recursive(
-        &self,
-        name: String,
-        n: usize,
-        visited: Arc<Mutex<HashSet<String>>>,
-    ) -> Vec<Artist> {
-        {
-            let mut visited_lock = visited.lock().await;
-            if visited_lock.contains(&name) {
-                return Vec::new();
-            }
-            visited_lock.insert(name.clone());
-        }
+    pub async fn search_recursive(&self, name: &str, n: usize) -> Vec<Artist> {
+        let mut artists = Vec::new();
 
-        let mut total_artists = Vec::new();
-        let artist = match self.search_artist(&name).await {
-            Ok(artist) => artist,
-            Err(_) => return Vec::new(),
-        };
-        let collabs = artist.collaborators.clone().unwrap_or_default();
-        total_artists.push(artist);
+        let artist = self.search_artist(name).await.unwrap();
+        artists.push(artist.clone());
+
         if n == 0 {
-            return total_artists;
+            return artists;
         }
 
-        let futures = collabs.into_iter().map(|(name, _)| {
-            let visited_clone = visited.clone();
-            async move { self.search_recursive(name, n - 1, visited_clone).await }
-        });
-        let results = future::join_all(futures).await;
-        for mut result in results {
-            total_artists.append(&mut result);
+        let Some(artists_collabs) = artist.collaborators else {
+            return artists;
+        };
+        for (collab_name, _) in artists_collabs {
+            let collabs = Box::pin(self.search_recursive(&collab_name, n - 1)).await;
+            artists.extend(collabs);
         }
 
-        total_artists
+        artists
     }
 }

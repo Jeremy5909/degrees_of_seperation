@@ -53,8 +53,7 @@ async fn main() {
         match Args::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
                 Args::Search { artist, recursion } => {
-                    let visited = Default::default();
-                    let all_artists = music_api.search_recursive(artist, recursion, visited).await;
+                    let all_artists = music_api.search_recursive(&artist, recursion).await;
                     artists.extend(
                         all_artists
                             .into_iter()

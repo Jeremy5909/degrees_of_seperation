@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub type ArtistSmall = HashMap<String, String>;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Artist {
     pub id: String,
     pub name: String,
