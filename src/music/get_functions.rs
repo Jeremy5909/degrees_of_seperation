@@ -28,7 +28,7 @@ where {
                             wait_secs = secs;
                         }
                     }
-                    println!("Rate limited - waiting {}s...", wait_secs);
+                    //eprintln!("Rate limited - waiting {}s...", wait_secs);
                     sleep(Duration::from_secs(wait_secs)).await;
                     continue;
                 }
@@ -118,7 +118,11 @@ where {
                     .map(|artist| (artist.name, artist.id)),
             );
         }
-        eprintln!("Found {} collaborators", collaborators.len());
+        eprintln!(
+            "Found {} {} collaborators",
+            collaborators.len(),
+            artist.name
+        );
         collaborators
     }
     async fn get_artist_songs(&self, artist: &Artist) -> Vec<Song> {
@@ -141,7 +145,7 @@ where {
             )
             .await
             .unwrap_or_default();
-        eprintln!("Found {} albums", albums.len());
+        eprintln!("Found {} {} albums", albums.len(), artist.name);
 
         albums
     }

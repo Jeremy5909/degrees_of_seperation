@@ -1,6 +1,7 @@
 use std::env;
 
 use dotenv::dotenv;
+use futures::future;
 use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
 use serde_json::Value;
 
@@ -81,10 +82,21 @@ impl Music {
         let Some(artists_collabs) = artist.collaborators else {
             return artists;
         };
-        for (collab_name, _) in artists_collabs {
-            let collabs = Box::pin(self.search_recursive(&collab_name, n - 1)).await;
-            artists.extend(collabs);
-        }
+
+        let futures = artists_collabs
+            .iter()
+            .map(|(collab_name, _)| Box::pin(self.search_recursive(&collab_name, n - 1)));
+        let collabs: Vec<_> = future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        artists.extend(collabs);
+        // for (collab_name, _) in artists_collabs {
+        //     let collabs = Box::pin(self.search_recursive(&collab_name, n - 1)).await;
+        //     artists.extend(collabs);
+        // }
 
         artists
     }
