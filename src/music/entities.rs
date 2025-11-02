@@ -6,8 +6,8 @@ pub type ArtistSmall = HashMap<String, String>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Artist {
-    pub id: String,
     pub name: String,
+    pub id: String,
     pub collaborators: Option<ArtistSmall>,
 }
 

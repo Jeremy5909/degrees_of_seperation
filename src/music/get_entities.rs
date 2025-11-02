@@ -1,9 +1,6 @@
-use std::time::Duration;
-
 use futures::future;
-use reqwest::{IntoUrl, StatusCode, Url, header::AUTHORIZATION};
+use reqwest::Url;
 use serde::de::DeserializeOwned;
-use tokio::time::sleep;
 
 use crate::music::{
     self, Albums, Artists, Music, Songs,
@@ -11,32 +8,6 @@ use crate::music::{
 };
 
 impl Music {
-    async fn get<T: DeserializeOwned>(&self, req: impl IntoUrl + Clone) -> Result<T, music::Error>
-where {
-        loop {
-            let resp = self
-                .client
-                .get(req.clone())
-                .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
-                .send()
-                .await?;
-            match resp.status() {
-                StatusCode::TOO_MANY_REQUESTS => {
-                    let mut wait_secs = 1;
-                    if let Some(wait) = resp.headers().get("Retry-after") {
-                        if let Ok(secs) = wait.to_str().unwrap_or("1").parse::<u64>() {
-                            wait_secs = secs;
-                        }
-                    }
-                    //eprintln!("Rate limited - waiting {}s...", wait_secs);
-                    sleep(Duration::from_secs(wait_secs)).await;
-                    continue;
-                }
-                StatusCode::OK => return resp.json().await.map_err(|e| e.into()),
-                e => return Err(e.into()),
-            }
-        }
-    }
     async fn get_entities<T: IntoIterator + DeserializeOwned>(
         &self,
         lhs: Entity,
@@ -95,11 +66,10 @@ where {
                 .unwrap(),
             )
             .await?;
-        let artists: Vec<_> = artists.into_iter().collect();
         let mut artist = artists.into_iter().next().unwrap();
 
         artist.collaborators = Some(
-            self.get_artist_collaborators(&mut artist)
+            self.get_all_collabs(&mut artist)
                 .await
                 .into_iter()
                 .collect(),
@@ -107,17 +77,18 @@ where {
 
         Ok(artist)
     }
-    pub async fn get_artist_collaborators(&self, artist: &mut Artist) -> ArtistSmall {
-        let tracks = self.get_artist_songs(artist).await;
-        let mut collaborators = ArtistSmall::new();
-        for track in tracks {
-            collaborators.extend(
-                track
-                    .artists
+    pub async fn get_all_collabs(&self, artist: &mut Artist) -> ArtistSmall {
+        let all_songs = self.get_all_songs(artist).await;
+
+        let collaborators: ArtistSmall = all_songs
+            .into_iter()
+            .flat_map(|song| {
+                song.artists
                     .into_iter()
-                    .map(|artist| (artist.name, artist.id)),
-            );
-        }
+                    .map(|artist| (artist.name, artist.id))
+            })
+            .collect();
+
         eprintln!(
             "Found {} {} collaborators",
             collaborators.len(),
@@ -125,15 +96,19 @@ where {
         );
         collaborators
     }
-    async fn get_artist_songs(&self, artist: &Artist) -> Vec<Song> {
-        let albums = self.get_artist_albums(artist).await;
+    pub async fn get_all_songs(&self, artist: &Artist) -> Vec<Song> {
+        let albums = self.get_all_albums(artist).await;
 
-        let results =
-            future::join_all(albums.iter().map(|album| self.get_album_songs(&album))).await;
+        let results = future::join_all(albums.iter().map(async |album| {
+            self.get_entities::<Songs>(Entity::Albums, &album.id, Entity::Songs, vec![], None)
+                .await
+                .unwrap_or_default()
+        }))
+        .await;
 
         results.into_iter().flatten().collect()
     }
-    async fn get_artist_albums(&self, artist: &Artist) -> Vec<Album> {
+    pub async fn get_all_albums(&self, artist: &Artist) -> Vec<Album> {
         eprintln!("Finding {}'s albums...", artist.name);
         let albums: Vec<Album> = self
             .get_entities::<Albums>(
@@ -148,10 +123,5 @@ where {
         eprintln!("Found {} {} albums", albums.len(), artist.name);
 
         albums
-    }
-    async fn get_album_songs(&self, album: &Album) -> Vec<Song> {
-        self.get_entities::<Songs>(Entity::Albums, &album.id, Entity::Songs, vec![], None)
-            .await
-            .unwrap_or_default()
     }
 }

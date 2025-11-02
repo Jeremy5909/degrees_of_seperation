@@ -1,9 +1,14 @@
-use std::env;
+use std::{env, time::Duration};
 
 use dotenv::dotenv;
 use futures::future;
-use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
+use reqwest::{
+    Client, IntoUrl, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
+use tokio::time::sleep;
 
 use crate::music::{
     entities::Artist,
@@ -11,9 +16,10 @@ use crate::music::{
 };
 
 pub mod entities;
-pub mod get_functions;
+pub mod get_entities;
 pub mod responses;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum Error {
     Reqest(reqwest::Error),
@@ -64,6 +70,34 @@ impl Music {
             client_id,
             client_secret,
             access_token,
+        }
+    }
+    async fn get<T: DeserializeOwned>(&self, req: impl IntoUrl + Clone) -> Result<T, Error>
+where {
+        loop {
+            let resp = self
+                .client
+                .get(req.clone())
+                .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+                .send()
+                .await?;
+            match resp.status() {
+                StatusCode::TOO_MANY_REQUESTS => {
+                    let mut wait_secs = 1;
+                    if let Some(wait) = resp.headers().get("Retry-after") {
+                        if let Ok(secs) = wait.to_str().unwrap_or("1").parse::<u64>() {
+                            wait_secs = secs;
+                        }
+                    }
+                    if wait_secs > 5 {
+                        eprintln!("Rate limited - waiting {}s...", wait_secs);
+                    }
+                    sleep(Duration::from_secs(wait_secs)).await;
+                    continue;
+                }
+                StatusCode::OK => return resp.json().await.map_err(|e| e.into()),
+                e => return Err(e.into()),
+            }
         }
     }
     pub async fn search_recursive(&self, name: &str, n: usize) -> Vec<Artist> {
