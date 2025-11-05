@@ -13,7 +13,7 @@ use crate::music::{Music, entities::Artist};
 mod music;
 
 #[derive(Parser, Debug)]
-enum Args {
+enum Commands {
     Search {
         artist: String,
         #[arg(default_value_t = 0, short = 'n')]
@@ -23,6 +23,8 @@ enum Args {
         artist: String,
     },
     List,
+    #[clap(alias("exit"))]
+    Quit,
 }
 
 fn read_command() -> Vec<String> {
@@ -50,9 +52,9 @@ async fn main() {
         let args = read_command();
         let args: Vec<_> = args.iter().map(|s| s.as_str()).collect();
 
-        match Args::try_parse_from(iter::once(">").chain(args)) {
+        match Commands::try_parse_from(iter::once(">").chain(args)) {
             Ok(command) => match command {
-                Args::Search { artist, recursion } => {
+                Commands::Search { artist, recursion } => {
                     let all_artists = music_api.search_recursive(&artist, recursion).await;
                     artists.extend(
                         all_artists
@@ -60,7 +62,7 @@ async fn main() {
                             .map(|artist| (artist.name.clone(), artist)),
                     );
                 }
-                Args::Delete { artist } => {
+                Commands::Delete { artist } => {
                     if let Some(matched_artist) = fuzzy_match(
                         &artist,
                         artists.clone().iter().map(|(name, id)| (name.as_str(), id)),
@@ -79,7 +81,7 @@ async fn main() {
                         println!("Artist not found");
                     }
                 }
-                Args::List => {
+                Commands::List => {
                     println!(
                         "{}",
                         artists
@@ -88,6 +90,12 @@ async fn main() {
                             .collect::<Vec<_>>()
                             .join(", ")
                     );
+                }
+                Commands::Quit => {
+                    fs::write("save.json", serde_json::to_string_pretty(&artists).unwrap())
+                        .unwrap();
+                    eprintln!("Saved!");
+                    break;
                 }
             },
             Err(e) => eprintln!("{}", e.render()),
